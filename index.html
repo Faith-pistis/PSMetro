@@ -946,47 +946,62 @@ function makeBeep(ac, time, isAccent, isSub, vol) {
 // ---- Human voice setup ----
 let femaleVoice = null;
 
+function findFemaleVoice() {
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return false;
+  const prefer = [
+    v => /samantha|victoria|karen|moira|fiona|allison|ava|susan|zira|hazel|emily|kate|serena/i.test(v.name),
+    v => /female|woman/i.test(v.name),
+    v => v.lang === 'en-US',
+    v => v.lang.startsWith('en'),
+  ];
+  for (const test of prefer) {
+    const found = voices.find(test);
+    if (found) { femaleVoice = found; return true; }
+  }
+  femaleVoice = voices[0];
+  return true;
+}
+
 function loadFemaleVoice() {
-  const tryFind = () => {
-    const voices = window.speechSynthesis.getVoices();
-    if (!voices.length) return;
-    // Priority: explicitly female-named voices, then en-US/en-GB
-    const prefer = [
-      v => /female|woman|girl/i.test(v.name),
-      v => /samantha|victoria|karen|moira|fiona|allison|ava|susan|zira|hazel|emily|kate|serena/i.test(v.name),
-      v => v.lang.startsWith('en') && !v.name.toLowerCase().includes('male'),
-      v => v.lang.startsWith('en'),
-    ];
-    for (const test of prefer) {
-      const found = voices.find(test);
-      if (found) { femaleVoice = found; break; }
-    }
-    if (!femaleVoice && voices.length) femaleVoice = voices[0];
-  };
-  tryFind();
-  window.speechSynthesis.onvoiceschanged = tryFind;
+  if (findFemaleVoice()) return;
+  // onvoiceschanged is unreliable on iOS — poll as fallback
+  window.speechSynthesis.onvoiceschanged = findFemaleVoice;
+  let attempts = 0;
+  const poll = setInterval(() => {
+    if (findFemaleVoice() || ++attempts > 20) clearInterval(poll);
+  }, 250);
 }
 
 loadFemaleVoice();
 
+let lastSpokenBeat = -1;
+
 function makeHuman(ac, time, beat, vol) {
   if (!window.speechSynthesis) return;
+
+  // Prevent the lookahead scheduler from queuing the same beat-word twice
+  if (beat === lastSpokenBeat) return;
+  lastSpokenBeat = beat;
+
   const words = ['one','two','three','four','five','six','seven','eight',
                  'nine','ten','eleven','twelve'];
   const word = words[(beat - 1) % words.length];
 
   const delayMs = Math.max(0, (time - ac.currentTime) * 1000);
 
+  // iOS: do NOT call cancel() before speak() — it silences the engine.
+  // Instead queue utterances and let the engine drain naturally.
+  // We keep the queue short by only scheduling one word at a time.
   setTimeout(() => {
-    // Cancel any pending utterance that hasn't started yet to avoid pile-ups
-    if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
-
     const u = new SpeechSynthesisUtterance(word);
+    // On iOS, setting .voice before the voices are ready silently fails.
+    // Only assign if we have a confirmed loaded voice.
     if (femaleVoice) u.voice = femaleVoice;
     u.lang   = 'en-US';
-    u.rate   = 1.15;
-    u.pitch  = 1.3;   // higher pitch → more feminine
-    u.volume = Math.min(1, vol * 1.2);
+    u.rate   = 1.3;
+    u.pitch  = 1.4;
+    u.volume = 1.0;
     window.speechSynthesis.speak(u);
   }, delayMs);
 }
@@ -1175,6 +1190,8 @@ function stopMetronome() {
   clearInterval(schedulerTimer);
   schedulerTimer = null;
   beatQueue.length = 0;
+  lastSpokenBeat = -1;
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
 
   clearAllDots();
   document.getElementById('pendulumArm').style.transform = 'rotate(0deg)';
