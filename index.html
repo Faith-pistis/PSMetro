@@ -855,28 +855,52 @@ function makeClick(ac, time, isAccent, isSub, vol) {
 }
 
 function makeWood(ac, time, isAccent, isSub, vol) {
-  const g = ac.createGain();
-  g.connect(ac.destination);
-  const amp = isAccent ? 0.85 * vol : (isSub ? 0.35 * vol : 0.6 * vol);
-  g.gain.setValueAtTime(amp, time);
-  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.12);
+  const amp = isAccent ? 0.9 * vol : (isSub ? 0.4 * vol : 0.65 * vol);
+  const freq = isAccent ? 800 : (isSub ? 500 : 650);
+  const dur = 0.08;
 
-  const buf = ac.createBuffer(1, ac.sampleRate * 0.15, ac.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < d.length; i++) {
-    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 8);
-  }
-  const src = ac.createBufferSource();
-  src.buffer = buf;
+  // --- Tonal body: two detuned oscillators ---
+  const oGain = ac.createGain();
+  oGain.connect(ac.destination);
+  oGain.gain.setValueAtTime(amp * 0.7, time);
+  oGain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
 
-  const f = ac.createBiquadFilter();
-  f.type = 'bandpass';
-  f.frequency.value = isAccent ? 1000 : (isSub ? 700 : 850);
-  f.Q.value = 8;
+  const o1 = ac.createOscillator();
+  o1.type = 'sine';
+  o1.frequency.setValueAtTime(freq, time);
+  o1.frequency.exponentialRampToValueAtTime(freq * 0.6, time + dur);
+  o1.connect(oGain);
+  o1.start(time);
+  o1.stop(time + dur + 0.01);
 
-  src.connect(f);
-  f.connect(g);
-  src.start(time);
+  const o2 = ac.createOscillator();
+  o2.type = 'sine';
+  o2.frequency.setValueAtTime(freq * 1.55, time);
+  o2.frequency.exponentialRampToValueAtTime(freq * 0.9, time + dur);
+  o2.connect(oGain);
+  o2.start(time);
+  o2.stop(time + dur + 0.01);
+
+  // --- Transient click attack ---
+  const cGain = ac.createGain();
+  cGain.connect(ac.destination);
+  cGain.gain.setValueAtTime(amp * 0.5, time);
+  cGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.012);
+
+  const nBuf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.015), ac.sampleRate);
+  const nd = nBuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  const nSrc = ac.createBufferSource();
+  nSrc.buffer = nBuf;
+
+  const bp = ac.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = freq * 2;
+  bp.Q.value = 1.5;
+
+  nSrc.connect(bp);
+  bp.connect(cGain);
+  nSrc.start(time);
 }
 
 function makeHihat(ac, time, isAccent, isSub, vol) {
@@ -919,52 +943,52 @@ function makeBeep(ac, time, isAccent, isSub, vol) {
   o.stop(time + 0.1);
 }
 
-// Human voice (spoken numbers using synthesis)
-const humanBuffers = {};
+// ---- Human voice setup ----
+let femaleVoice = null;
+
+function loadFemaleVoice() {
+  const tryFind = () => {
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return;
+    // Priority: explicitly female-named voices, then en-US/en-GB
+    const prefer = [
+      v => /female|woman|girl/i.test(v.name),
+      v => /samantha|victoria|karen|moira|fiona|allison|ava|susan|zira|hazel|emily|kate|serena/i.test(v.name),
+      v => v.lang.startsWith('en') && !v.name.toLowerCase().includes('male'),
+      v => v.lang.startsWith('en'),
+    ];
+    for (const test of prefer) {
+      const found = voices.find(test);
+      if (found) { femaleVoice = found; break; }
+    }
+    if (!femaleVoice && voices.length) femaleVoice = voices[0];
+  };
+  tryFind();
+  window.speechSynthesis.onvoiceschanged = tryFind;
+}
+
+loadFemaleVoice();
 
 function makeHuman(ac, time, beat, vol) {
-  // Use oscillator-based number synthesis
-  const freqs = [440, 523, 587, 659, 698, 784, 880, 988];
-  const g = ac.createGain();
-  g.connect(ac.destination);
-  g.gain.setValueAtTime(vol * 0.8, time);
-  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.25);
+  if (!window.speechSynthesis) return;
+  const words = ['one','two','three','four','five','six','seven','eight',
+                 'nine','ten','eleven','twelve'];
+  const word = words[(beat - 1) % words.length];
 
-  const f = freqs[(beat - 1) % freqs.length];
-  const o1 = ac.createOscillator();
-  o1.type = 'sawtooth';
-  o1.frequency.value = f;
+  const delayMs = Math.max(0, (time - ac.currentTime) * 1000);
 
-  const o2 = ac.createOscillator();
-  o2.type = 'sine';
-  o2.frequency.value = f * 2.1;
+  setTimeout(() => {
+    // Cancel any pending utterance that hasn't started yet to avoid pile-ups
+    if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
 
-  const filt = ac.createBiquadFilter();
-  filt.type = 'bandpass';
-  filt.frequency.value = 1200;
-  filt.Q.value = 3;
-
-  const env = ac.createGain();
-  env.gain.setValueAtTime(0.7, time);
-  env.gain.linearRampToValueAtTime(0.0001, time + 0.22);
-
-  o1.connect(filt);
-  o2.connect(filt);
-  filt.connect(env);
-  env.connect(g);
-
-  o1.start(time); o1.stop(time + 0.25);
-  o2.start(time); o2.stop(time + 0.25);
-
-  // Speak using SpeechSynthesis if available (non-blocking)
-  if (window.speechSynthesis && beat <= 12) {
-    const words = ['one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve'];
-    const u = new SpeechSynthesisUtterance(words[beat - 1]);
-    u.rate = 2.2;
-    u.pitch = 1.1;
-    u.volume = vol;
-    setTimeout(() => window.speechSynthesis.speak(u), (time - ac.currentTime) * 1000);
-  }
+    const u = new SpeechSynthesisUtterance(word);
+    if (femaleVoice) u.voice = femaleVoice;
+    u.lang   = 'en-US';
+    u.rate   = 1.15;
+    u.pitch  = 1.3;   // higher pitch → more feminine
+    u.volume = Math.min(1, vol * 1.2);
+    window.speechSynthesis.speak(u);
+  }, delayMs);
 }
 
 function playSound(type, isAccent, isSub, beat, vol, time) {
