@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pistis Metronome</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3d;
+    --accent: #e8c547;
+    --accent2: #f07a4a;
+    --accent3: #5b9cf6;
+    --text: #f0f0f8;
+    --text-muted: #7070a0;
+    --beat-active: #e8c547;
+    --beat-accent-active: #f07a4a;
+    --beat-sub: #5b9cf6;
+    --glow: 0 0 30px rgba(232,197,71,0.3);
+    --radius: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Ambient background */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: 
+      radial-gradient(ellipse 600px 400px at 20% 30%, rgba(232,197,71,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 500px 350px at 80% 70%, rgba(91,156,246,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 400px 300px at 60% 20%, rgba(240,122,74,0.03) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 900px;
+    padding: 24px 20px 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+  }
+
+  /* Header */
+  header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .logo-name {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+
+  .logo-tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .status-pill {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 6px 14px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    transition: all 0.3s;
+  }
+
+  .status-pill.playing {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(232,197,71,0.08);
+    box-shadow: 0 0 20px rgba(232,197,71,0.15);
+  }
+
+  /* Beat visualizer */
+  .beat-display {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .beat-display::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .beat-display.pulse::after { opacity: 1; }
+
+  .beat-dots {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .beat-group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    position: relative;
+  }
+
+  .beat-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 2px solid var(--border);
+    transition: all 0.06s;
+    position: relative;
+  }
+
+  .beat-dot.main {
+    width: 24px;
+    height: 24px;
+    border-color: var(--text-muted);
+  }
+
+  .beat-dot.sub {
+    width: 12px;
+    height: 12px;
+  }
+
+  .beat-dot.active-beat1 {
+    background: var(--beat-active);
+    border-color: var(--beat-active);
+    box-shadow: 0 0 16px rgba(232,197,71,0.7), 0 0 4px rgba(232,197,71,1);
+    transform: scale(1.25);
+  }
+
+  .beat-dot.active-accent {
+    background: var(--beat-accent-active);
+    border-color: var(--beat-accent-active);
+    box-shadow: 0 0 14px rgba(240,122,74,0.7);
+    transform: scale(1.2);
+  }
+
+  .beat-dot.active-sub {
+    background: var(--beat-sub);
+    border-color: var(--beat-sub);
+    box-shadow: 0 0 10px rgba(91,156,246,0.6);
+    transform: scale(1.1);
+  }
+
+  /* BPM section */
+  .bpm-section {
+    text-align: center;
+    position: relative;
+  }
+
+  .bpm-number {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(80px, 14vw, 130px);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -4px;
+    color: var(--text);
+    cursor: default;
+    user-select: none;
+    transition: color 0.2s, text-shadow 0.2s;
+  }
+
+  .bpm-number.pulse {
+    text-shadow: 0 0 40px rgba(232,197,71,0.5);
+    color: var(--accent);
+  }
+
+  .bpm-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 4px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+  }
+
+  /* Tempo slider */
+  .tempo-track {
+    width: 100%;
+    position: relative;
+  }
+
+  .tempo-slider-wrap {
+    position: relative;
+    width: 100%;
+    height: 6px;
+  }
+
+  input[type="range"].tempo-slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: transparent;
+    position: absolute;
+    top: 0; left: 0;
+    z-index: 2;
+    cursor: pointer;
+  }
+
+  .slider-track {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .slider-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.05s;
+  }
+
+  input[type="range"].tempo-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px rgba(232,197,71,0.5);
+    border: 3px solid var(--bg);
+    cursor: grab;
+    transition: box-shadow 0.2s, transform 0.15s;
+    margin-top: -8px;
+  }
+
+  input[type="range"].tempo-slider::-webkit-slider-thumb:active {
+    cursor: grabbing;
+    transform: scale(1.15);
+    box-shadow: 0 0 20px rgba(232,197,71,0.7);
+  }
+
+  input[type="range"].tempo-slider::-webkit-slider-runnable-track {
+    height: 6px;
+  }
+
+  .tempo-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 14px;
+  }
+
+  .tempo-label-item {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  .tempo-label-item span {
+    display: block;
+    font-size: 8px;
+    opacity: 0.6;
+    margin-top: 2px;
+  }
+
+  /* BPM nudge buttons */
+  .bpm-nudge {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+  }
+
+  .nudge-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    font-family: 'Space Mono', monospace;
+    flex-shrink: 0;
+  }
+
+  .nudge-btn:hover { background: var(--surface); border-color: var(--accent); color: var(--accent); }
+  .nudge-btn:active { transform: scale(0.93); }
+
+  .nudge-btn.large {
+    width: 52px;
+    height: 44px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  /* Controls row */
+  .controls-grid {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .control-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+  }
+
+  .control-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+    font-weight: 600;
+  }
+
+  .chip-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    padding: 7px 14px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.18s;
+    white-space: nowrap;
+  }
+
+  .chip:hover { border-color: var(--text-muted); color: var(--text); }
+
+  .chip.active {
+    background: rgba(232,197,71,0.12);
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 12px rgba(232,197,71,0.15);
+  }
+
+  /* Voice selector */
+  .voice-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .voice-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 8px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+
+  .voice-btn:hover { border-color: var(--text-muted); color: var(--text); }
+
+  .voice-btn.active {
+    background: rgba(91,156,246,0.1);
+    border-color: var(--accent3);
+    color: var(--accent3);
+    box-shadow: 0 0 14px rgba(91,156,246,0.15);
+  }
+
+  .voice-icon { font-size: 22px; line-height: 1; }
+
+  .voice-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+  }
+
+  /* Play button */
+  .play-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+  }
+
+  .play-btn {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 0 0 0 rgba(232,197,71,0.3), 0 8px 32px rgba(0,0,0,0.4);
+    position: relative;
+  }
+
+  .play-btn::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 2px solid rgba(232,197,71,0.3);
+    transition: all 0.3s;
+  }
+
+  .play-btn.playing {
+    background: var(--surface2);
+    border: 2px solid var(--accent);
+    box-shadow: 0 0 0 8px rgba(232,197,71,0.08), 0 8px 40px rgba(232,197,71,0.2);
+  }
+
+  .play-btn.playing::before {
+    inset: -10px;
+    border-color: rgba(232,197,71,0.15);
+    animation: ringPulse 1s ease-out infinite;
+  }
+
+  @keyframes ringPulse {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1.3); opacity: 0; }
+  }
+
+  .play-btn:hover { transform: scale(1.06); }
+  .play-btn:active { transform: scale(0.95); }
+
+  /* Tap tempo */
+  .tap-btn {
+    padding: 12px 32px;
+    border-radius: 100px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+
+  .tap-btn:hover { border-color: var(--accent3); color: var(--accent3); }
+  .tap-btn:active { transform: scale(0.97); background: rgba(91,156,246,0.08); }
+
+  /* Volume */
+  .vol-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 340px;
+  }
+
+  .vol-icon { font-size: 18px; opacity: 0.6; }
+
+  input[type="range"].vol-slider {
+    -webkit-appearance: none;
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    cursor: pointer;
+  }
+
+  input[type="range"].vol-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent3);
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 8px rgba(91,156,246,0.4);
+    margin-top: -6px;
+  }
+
+  input[type="range"].vol-slider::-webkit-slider-runnable-track {
+    height: 4px;
+  }
+
+  /* Bottom info bar */
+  .info-bar {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .info-item {
+    text-align: center;
+  }
+
+  .info-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .info-sublabel {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* Keyboard hint */
+  .kbd-hint {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-align: center;
+    opacity: 0.5;
+  }
+
+  kbd {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+  }
+
+  /* Wide layout */
+  @media(min-width: 700px) {
+    .main-layout {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      width: 100%;
+      align-items: start;
+    }
+
+    .play-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding-top: 8px;
+    }
+  }
+
+  @media(max-width: 699px) {
+    .controls-grid { grid-template-columns: 1fr; }
+    .main-layout { display: flex; flex-direction: column; }
+    .play-col { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    .voice-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  /* Pendulum */
+  .pendulum-wrap {
+    width: 60px;
+    height: 100px;
+    position: relative;
+    display: flex;
+    justify-content: center;
+  }
+
+  .pendulum-arm {
+    position: absolute;
+    top: 0;
+    width: 3px;
+    height: 80px;
+    background: linear-gradient(to bottom, var(--border), var(--text-muted));
+    border-radius: 2px;
+    transform-origin: top center;
+    transition: transform 0.1s;
+  }
+
+  .pendulum-bob {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px rgba(232,197,71,0.5);
+  }
+
+  .pendulum-pivot {
+    position: absolute;
+    top: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo">
+      <span class="logo-name">Pistis Metronome</span>
+      <span class="logo-tag">Pro</span>
+    </div>
+    <div class="status-pill" id="statusPill">STOPPED</div>
+  </header>
+
+  <!-- Beat visualizer -->
+  <div class="beat-display" id="beatDisplay">
+    <div class="beat-dots" id="beatDots"></div>
+    <div style="display:flex;gap:32px;align-items:center;">
+      <div class="pendulum-wrap">
+        <div class="pendulum-pivot"></div>
+        <div class="pendulum-arm" id="pendulumArm">
+          <div class="pendulum-bob"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BPM + slider -->
+  <div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:16px;">
+    <div class="bpm-section">
+      <div class="bpm-number" id="bpmDisplay">120</div>
+      <div class="bpm-label">BPM</div>
+    </div>
+
+    <div class="bpm-nudge">
+      <button class="nudge-btn large" id="btn-10m">−10</button>
+      <button class="nudge-btn" id="btn-1m">−1</button>
+      <button class="nudge-btn" id="btn-1p">+1</button>
+      <button class="nudge-btn large" id="btn-10p">+10</button>
+    </div>
+
+    <div class="tempo-track" style="width:100%;max-width:600px;padding:0 4px;">
+      <div class="tempo-slider-wrap">
+        <div class="slider-track"><div class="slider-fill" id="sliderFill"></div></div>
+        <input type="range" class="tempo-slider" id="tempoSlider" min="20" max="300" value="120">
+      </div>
+      <div class="tempo-labels">
+        <div class="tempo-label-item">Largo<span>20–60</span></div>
+        <div class="tempo-label-item">Adagio<span>66–76</span></div>
+        <div class="tempo-label-item">Andante<span>76–108</span></div>
+        <div class="tempo-label-item">Allegro<span>120–168</span></div>
+        <div class="tempo-label-item">Presto<span>168–200</span></div>
+        <div class="tempo-label-item">Vivace<span>200+</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main layout: controls + play -->
+  <div class="main-layout" style="width:100%;">
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+      <!-- Time signature + subdivisions -->
+      <div class="controls-grid">
+        <div class="control-card">
+          <div class="control-label">Time Signature</div>
+          <div class="chip-group" id="timeSigGroup">
+            <div class="chip active" data-ts="2/4">2/4</div>
+            <div class="chip active" data-ts="3/4">3/4</div>
+            <div class="chip active" data-ts="4/4">4/4</div>
+            <div class="chip" data-ts="5/4">5/4</div>
+            <div class="chip" data-ts="6/8">6/8</div>
+            <div class="chip" data-ts="7/8">7/8</div>
+            <div class="chip" data-ts="12/8">12/8</div>
+          </div>
+        </div>
+
+        <div class="control-card">
+          <div class="control-label">Subdivisions</div>
+          <div class="chip-group" id="subdivGroup">
+            <div class="chip active" data-sub="1">None</div>
+            <div class="chip" data-sub="2">Duplets</div>
+            <div class="chip" data-sub="3">Triplets</div>
+            <div class="chip" data-sub="4">Quads</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Voice -->
+      <div class="control-card">
+        <div class="control-label">Voice</div>
+        <div class="voice-grid" id="voiceGroup">
+          <button class="voice-btn active" data-voice="click">
+            <span class="voice-icon">🎯</span>
+            <span class="voice-label">CLICK</span>
+          </button>
+          <button class="voice-btn" data-voice="wood">
+            <span class="voice-icon">🪵</span>
+            <span class="voice-label">WOOD</span>
+          </button>
+          <button class="voice-btn" data-voice="hihat">
+            <span class="voice-icon">🥁</span>
+            <span class="voice-label">HI-HAT</span>
+          </button>
+          <button class="voice-btn" data-voice="beep">
+            <span class="voice-icon">📡</span>
+            <span class="voice-label">BEEP</span>
+          </button>
+          <button class="voice-btn" data-voice="human">
+            <span class="voice-icon">🎙️</span>
+            <span class="voice-label">COUNT</span>
+          </button>
+          <button class="voice-btn" data-voice="mute">
+            <span class="voice-icon">🔇</span>
+            <span class="voice-label">VISUAL</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Play column -->
+    <div class="play-col">
+      <button class="play-btn" id="playBtn">▶</button>
+      <button class="tap-btn" id="tapBtn">TAP TEMPO</button>
+      <div class="vol-row">
+        <span class="vol-icon">🔈</span>
+        <input type="range" class="vol-slider" id="volSlider" min="0" max="1" step="0.01" value="0.85">
+        <span class="vol-icon">🔊</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info bar -->
+  <div class="info-bar">
+    <div class="info-item">
+      <div class="info-value" id="infoSig">4/4</div>
+      <div class="info-sublabel">Time Sig</div>
+    </div>
+    <div class="info-item">
+      <div class="info-value" id="infoSub">1</div>
+      <div class="info-sublabel">Subdivisions</div>
+    </div>
+    <div class="info-item">
+      <div class="info-value" id="infoBeat">—</div>
+      <div class="info-sublabel">Current Beat</div>
+    </div>
+    <div class="info-item">
+      <div class="info-value" id="infoVoice">Click</div>
+      <div class="info-sublabel">Voice</div>
+    </div>
+  </div>
+
+  <div class="kbd-hint">
+    <kbd>Space</kbd> play/stop &nbsp;·&nbsp; <kbd>↑↓</kbd> tempo &nbsp;·&nbsp; <kbd>T</kbd> tap tempo
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// AUDIO ENGINE
+// ============================================================
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+let ctx = null;
+
+function getCtx() {
+  if (!ctx) ctx = new AudioContext();
+  return ctx;
+}
+
+// Synthesize different voice sounds
+function makeClick(ac, time, isAccent, isSub, vol) {
+  const g = ac.createGain();
+  g.connect(ac.destination);
+  const freq = isAccent ? 1200 : (isSub ? 600 : 900);
+  const amp = isAccent ? 0.9 * vol : (isSub ? 0.45 * vol : 0.7 * vol);
+  g.gain.setValueAtTime(amp, time);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.04);
+
+  const o = ac.createOscillator();
+  o.connect(g);
+  o.type = 'square';
+  o.frequency.setValueAtTime(freq, time);
+  o.frequency.exponentialRampToValueAtTime(freq * 0.5, time + 0.02);
+  o.start(time);
+  o.stop(time + 0.05);
+}
+
+function makeWood(ac, time, isAccent, isSub, vol) {
+  const g = ac.createGain();
+  g.connect(ac.destination);
+  const amp = isAccent ? 0.85 * vol : (isSub ? 0.35 * vol : 0.6 * vol);
+  g.gain.setValueAtTime(amp, time);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.12);
+
+  const buf = ac.createBuffer(1, ac.sampleRate * 0.15, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 8);
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+
+  const f = ac.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = isAccent ? 1000 : (isSub ? 700 : 850);
+  f.Q.value = 8;
+
+  src.connect(f);
+  f.connect(g);
+  src.start(time);
+}
+
+function makeHihat(ac, time, isAccent, isSub, vol) {
+  const g = ac.createGain();
+  g.connect(ac.destination);
+  const amp = isAccent ? 0.8 * vol : (isSub ? 0.3 * vol : 0.55 * vol);
+  const dur = isAccent ? 0.18 : (isSub ? 0.06 : 0.12);
+  g.gain.setValueAtTime(amp, time);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+
+  const buf = ac.createBuffer(1, ac.sampleRate * 0.2, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+
+  const hp = ac.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 8000;
+
+  src.connect(hp);
+  hp.connect(g);
+  src.start(time);
+}
+
+function makeBeep(ac, time, isAccent, isSub, vol) {
+  const g = ac.createGain();
+  g.connect(ac.destination);
+  const freq = isAccent ? 1047 : (isSub ? 440 : 880);
+  const amp = isAccent ? 0.7 * vol : (isSub ? 0.3 * vol : 0.5 * vol);
+  g.gain.setValueAtTime(0, time);
+  g.gain.linearRampToValueAtTime(amp, time + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.08);
+
+  const o = ac.createOscillator();
+  o.type = 'sine';
+  o.frequency.value = freq;
+  o.connect(g);
+  o.start(time);
+  o.stop(time + 0.1);
+}
+
+// Human voice (spoken numbers using synthesis)
+const humanBuffers = {};
+
+function makeHuman(ac, time, beat, vol) {
+  // Use oscillator-based number synthesis
+  const freqs = [440, 523, 587, 659, 698, 784, 880, 988];
+  const g = ac.createGain();
+  g.connect(ac.destination);
+  g.gain.setValueAtTime(vol * 0.8, time);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.25);
+
+  const f = freqs[(beat - 1) % freqs.length];
+  const o1 = ac.createOscillator();
+  o1.type = 'sawtooth';
+  o1.frequency.value = f;
+
+  const o2 = ac.createOscillator();
+  o2.type = 'sine';
+  o2.frequency.value = f * 2.1;
+
+  const filt = ac.createBiquadFilter();
+  filt.type = 'bandpass';
+  filt.frequency.value = 1200;
+  filt.Q.value = 3;
+
+  const env = ac.createGain();
+  env.gain.setValueAtTime(0.7, time);
+  env.gain.linearRampToValueAtTime(0.0001, time + 0.22);
+
+  o1.connect(filt);
+  o2.connect(filt);
+  filt.connect(env);
+  env.connect(g);
+
+  o1.start(time); o1.stop(time + 0.25);
+  o2.start(time); o2.stop(time + 0.25);
+
+  // Speak using SpeechSynthesis if available (non-blocking)
+  if (window.speechSynthesis && beat <= 12) {
+    const words = ['one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve'];
+    const u = new SpeechSynthesisUtterance(words[beat - 1]);
+    u.rate = 2.2;
+    u.pitch = 1.1;
+    u.volume = vol;
+    setTimeout(() => window.speechSynthesis.speak(u), (time - ac.currentTime) * 1000);
+  }
+}
+
+function playSound(type, isAccent, isSub, beat, vol, time) {
+  const ac = getCtx();
+  if (type === 'mute') return;
+  if (type === 'click') makeClick(ac, time, isAccent, isSub, vol);
+  else if (type === 'wood') makeWood(ac, time, isAccent, isSub, vol);
+  else if (type === 'hihat') makeHihat(ac, time, isAccent, isSub, vol);
+  else if (type === 'beep') makeBeep(ac, time, isAccent, isSub, vol);
+  else if (type === 'human') makeHuman(ac, time, beat, vol);
+}
+
+// ============================================================
+// METRONOME STATE
+// ============================================================
+let bpm = 120;
+let isPlaying = false;
+let currentBeat = 0;      // 0-indexed beat in measure
+let currentSub = 0;       // 0-indexed subdivision within beat
+let beatsPerMeasure = 4;
+let subdivisions = 1;
+let voice = 'click';
+let volume = 0.85;
+let timeSig = '4/4';
+
+// Scheduling
+let scheduleAheadTime = 0.1; // seconds
+let lookahead = 25; // ms
+let nextNoteTime = 0;
+let schedulerTimer = null;
+
+// UI beat flash queue
+const beatQueue = [];
+
+function schedule() {
+  const ac = getCtx();
+  while (nextNoteTime < ac.currentTime + scheduleAheadTime) {
+    const beat = currentBeat;
+    const sub = currentSub;
+    const isAccent = (beat === 0 && sub === 0);
+    const isMainBeat = (sub === 0);
+    const isSub = !isMainBeat;
+
+    // Schedule sound
+    playSound(voice, isAccent, isSub, beat + 1, volume, nextNoteTime);
+
+    // Queue UI update
+    beatQueue.push({ time: nextNoteTime, beat, sub, isAccent });
+
+    // Advance
+    const secPerBeat = 60.0 / bpm;
+    const secPerSub = secPerBeat / subdivisions;
+    nextNoteTime += secPerSub;
+
+    currentSub++;
+    if (currentSub >= subdivisions) {
+      currentSub = 0;
+      currentBeat = (currentBeat + 1) % beatsPerMeasure;
+    }
+  }
+}
+
+function drawBeatUI() {
+  if (!isPlaying) return;
+  const ac = getCtx();
+  const now = ac.currentTime;
+
+  let fired = false;
+  while (beatQueue.length && beatQueue[0].time <= now + 0.01) {
+    const { beat, sub, isAccent } = beatQueue.shift();
+    flashBeat(beat, sub, isAccent);
+    fired = true;
+  }
+
+  requestAnimationFrame(drawBeatUI);
+}
+
+// ============================================================
+// UI
+// ============================================================
+
+// Time sig -> beats config
+const timeSigMap = {
+  '2/4': { beats: 2, beatUnit: 4 },
+  '3/4': { beats: 3, beatUnit: 4 },
+  '4/4': { beats: 4, beatUnit: 4 },
+  '5/4': { beats: 5, beatUnit: 4 },
+  '6/8': { beats: 6, beatUnit: 8 },
+  '7/8': { beats: 7, beatUnit: 8 },
+  '12/8': { beats: 12, beatUnit: 8 },
+};
+
+function buildBeatDots() {
+  const container = document.getElementById('beatDots');
+  container.innerHTML = '';
+  for (let b = 0; b < beatsPerMeasure; b++) {
+    const group = document.createElement('div');
+    group.className = 'beat-group';
+
+    const main = document.createElement('div');
+    main.className = 'beat-dot main';
+    main.id = `dot-${b}-0`;
+    group.appendChild(main);
+
+    for (let s = 1; s < subdivisions; s++) {
+      const sub = document.createElement('div');
+      sub.className = 'beat-dot sub';
+      sub.id = `dot-${b}-${s}`;
+      group.appendChild(sub);
+    }
+
+    container.appendChild(group);
+  }
+}
+
+function clearAllDots() {
+  document.querySelectorAll('.beat-dot').forEach(d => {
+    d.classList.remove('active-beat1', 'active-accent', 'active-sub');
+  });
+}
+
+function flashBeat(beat, sub, isAccent) {
+  clearAllDots();
+  const dotId = `dot-${beat}-${sub}`;
+  const dot = document.getElementById(dotId);
+  if (!dot) return;
+
+  if (isAccent) dot.classList.add('active-beat1');
+  else if (sub === 0) dot.classList.add('active-accent');
+  else dot.classList.add('active-sub');
+
+  // BPM number flash
+  const bpmEl = document.getElementById('bpmDisplay');
+  if (sub === 0) {
+    bpmEl.classList.add('pulse');
+    document.getElementById('beatDisplay').classList.add('pulse');
+    setTimeout(() => {
+      bpmEl.classList.remove('pulse');
+      document.getElementById('beatDisplay').classList.remove('pulse');
+    }, 100);
+  }
+
+  // Info
+  document.getElementById('infoBeat').textContent = `${beat + 1}${sub > 0 ? '.' + sub : ''}`;
+
+  // Pendulum
+  updatePendulum(beat);
+}
+
+let pendulumDir = 1;
+let lastBeat = -1;
+function updatePendulum(beat) {
+  if (beat !== lastBeat) {
+    lastBeat = beat;
+    const arm = document.getElementById('pendulumArm');
+    const angle = pendulumDir * 28;
+    arm.style.transform = `rotate(${angle}deg)`;
+    pendulumDir *= -1;
+  }
+}
+
+// Start/stop
+function startMetronome() {
+  if (isPlaying) return;
+  const ac = getCtx();
+  isPlaying = true;
+  currentBeat = 0;
+  currentSub = 0;
+  nextNoteTime = ac.currentTime + 0.05;
+  beatQueue.length = 0;
+
+  schedulerTimer = setInterval(schedule, lookahead);
+  requestAnimationFrame(drawBeatUI);
+
+  document.getElementById('playBtn').innerHTML = '⏸';
+  document.getElementById('playBtn').classList.add('playing');
+  document.getElementById('statusPill').textContent = 'PLAYING';
+  document.getElementById('statusPill').classList.add('playing');
+}
+
+function stopMetronome() {
+  if (!isPlaying) return;
+  isPlaying = false;
+  clearInterval(schedulerTimer);
+  schedulerTimer = null;
+  beatQueue.length = 0;
+
+  clearAllDots();
+  document.getElementById('pendulumArm').style.transform = 'rotate(0deg)';
+  document.getElementById('playBtn').innerHTML = '▶';
+  document.getElementById('playBtn').classList.remove('playing');
+  document.getElementById('statusPill').textContent = 'STOPPED';
+  document.getElementById('statusPill').classList.remove('playing');
+  document.getElementById('infoBeat').textContent = '—';
+}
+
+function togglePlay() {
+  if (isPlaying) stopMetronome();
+  else startMetronome();
+}
+
+// BPM
+function setBpm(v) {
+  bpm = Math.max(20, Math.min(300, Math.round(v)));
+  document.getElementById('bpmDisplay').textContent = bpm;
+  document.getElementById('tempoSlider').value = bpm;
+  updateSliderFill();
+}
+
+function updateSliderFill() {
+  const pct = ((bpm - 20) / (300 - 20)) * 100;
+  document.getElementById('sliderFill').style.width = pct + '%';
+}
+
+// Time signature
+function setTimeSig(ts) {
+  timeSig = ts;
+  const cfg = timeSigMap[ts] || { beats: 4, beatUnit: 4 };
+  beatsPerMeasure = cfg.beats;
+  buildBeatDots();
+  document.getElementById('infoSig').textContent = ts;
+
+  // Chip UI
+  document.querySelectorAll('#timeSigGroup .chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.ts === ts);
+  });
+}
+
+// Subdivisions
+function setSubdivision(s) {
+  subdivisions = parseInt(s);
+  buildBeatDots();
+  document.getElementById('infoSub').textContent = subdivisions;
+  document.querySelectorAll('#subdivGroup .chip').forEach(c => {
+    c.classList.toggle('active', parseInt(c.dataset.sub) === subdivisions);
+  });
+}
+
+// Voice
+const voiceLabels = {
+  click: 'Click', wood: 'Wood', hihat: 'Hi-hat',
+  beep: 'Beep', human: 'Count', mute: 'Visual'
+};
+
+function setVoice(v) {
+  voice = v;
+  document.getElementById('infoVoice').textContent = voiceLabels[v] || v;
+  document.querySelectorAll('#voiceGroup .voice-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.voice === v);
+  });
+}
+
+// Tap tempo
+let tapTimes = [];
+function tapTempo() {
+  const now = Date.now();
+  tapTimes.push(now);
+  if (tapTimes.length > 8) tapTimes.shift();
+
+  if (tapTimes.length >= 2) {
+    const diffs = [];
+    for (let i = 1; i < tapTimes.length; i++) diffs.push(tapTimes[i] - tapTimes[i-1]);
+    const avg = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+    const tapped = Math.round(60000 / avg);
+    setBpm(tapped);
+  }
+
+  // Visual flash
+  const btn = document.getElementById('tapBtn');
+  btn.style.borderColor = 'var(--accent)';
+  btn.style.color = 'var(--accent)';
+  setTimeout(() => {
+    btn.style.borderColor = '';
+    btn.style.color = '';
+  }, 100);
+}
+
+// ============================================================
+// EVENT LISTENERS
+// ============================================================
+
+document.getElementById('playBtn').addEventListener('click', () => {
+  getCtx().resume();
+  togglePlay();
+});
+
+document.getElementById('tapBtn').addEventListener('click', tapTempo);
+
+document.getElementById('tempoSlider').addEventListener('input', e => {
+  setBpm(parseInt(e.target.value));
+});
+
+document.getElementById('btn-1m').addEventListener('click', () => setBpm(bpm - 1));
+document.getElementById('btn-1p').addEventListener('click', () => setBpm(bpm + 1));
+document.getElementById('btn-10m').addEventListener('click', () => setBpm(bpm - 10));
+document.getElementById('btn-10p').addEventListener('click', () => setBpm(bpm + 10));
+
+document.getElementById('volSlider').addEventListener('input', e => {
+  volume = parseFloat(e.target.value);
+});
+
+// Time signature chips
+document.querySelectorAll('#timeSigGroup .chip').forEach(c => {
+  c.addEventListener('click', () => setTimeSig(c.dataset.ts));
+});
+
+// Subdivision chips
+document.querySelectorAll('#subdivGroup .chip').forEach(c => {
+  c.addEventListener('click', () => setSubdivision(c.dataset.sub));
+});
+
+// Voice buttons
+document.querySelectorAll('#voiceGroup .voice-btn').forEach(b => {
+  b.addEventListener('click', () => setVoice(b.dataset.voice));
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); getCtx().resume(); togglePlay(); }
+  else if (e.code === 'ArrowUp') setBpm(bpm + 1);
+  else if (e.code === 'ArrowDown') setBpm(bpm - 1);
+  else if (e.key === 't' || e.key === 'T') tapTempo();
+});
+
+// ============================================================
+// INIT
+// ============================================================
+setTimeSig('4/4');
+setSubdivision(1);
+updateSliderFill();
+</script>
+</body>
+</html>
